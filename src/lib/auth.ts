@@ -3,7 +3,7 @@ import Credentials from 'next-auth/providers/credentials'
 import GitHub from 'next-auth/providers/github'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from './prisma'
-import bcrypt from 'bcryptjs'
+import bcrypt from 'bcrypt'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -31,8 +31,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        // For now, accept any password for demo users
-        // In production, verify password hash
+        // Check if user has a password (OAuth users won't have one)
+        if (!user.password) {
+          return null
+        }
+
+        // Verify password hash
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        )
+
+        if (!isPasswordValid) {
+          return null
+        }
+
         return {
           id: user.id,
           email: user.email,

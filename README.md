@@ -181,7 +181,7 @@ All routes under `/dashboard`, `/transactions`, `/accounts`, and `/categories` a
 
 When running with seed data:
 - **Email:** demo@example.com
-- **Password:** any password (for development only)
+- **Password:** demo123
 
 ## Features in Detail
 

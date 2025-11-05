@@ -1,22 +1,28 @@
 import { PrismaClient, CategoryType } from '@prisma/client'
+import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Starting database seed...')
 
-  // Create a demo user
+  // Create a demo user with hashed password
+  // Default password: "demo123" (for development/testing only)
+  const hashedPassword = await bcrypt.hash('demo123', 10)
+
   const user = await prisma.user.upsert({
     where: { email: 'demo@example.com' },
     update: {},
     create: {
       id: 'temp-user-id', // Use the hardcoded ID from the app
       email: 'demo@example.com',
+      password: hashedPassword,
       name: 'Demo User',
     },
   })
 
   console.log('✅ Created demo user:', user.email)
+  console.log('   Password: demo123 (development only)')
 
   // Create default accounts
   const checkingAccount = await prisma.financeAccount.upsert({
