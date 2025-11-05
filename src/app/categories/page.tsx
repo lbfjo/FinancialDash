@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Header } from '@/components/layout/Header'
 import { CategoryList } from '@/components/categories/CategoryList'
@@ -11,10 +12,8 @@ import { Loading } from '@/components/ui/Loading'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { CategoryWithRelations } from '@/types/api'
 
-// Temporary hardcoded user ID - replace with actual auth later
-const TEMP_USER_ID = 'temp-user-id'
-
 export default function CategoriesPage() {
+  const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<CategoryWithRelations[]>([])
@@ -27,7 +26,7 @@ export default function CategoriesPage() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/categories?userId=${TEMP_USER_ID}`)
+      const response = await fetch('/api/categories')
 
       if (!response.ok) {
         throw new Error('Failed to fetch categories')
@@ -43,8 +42,10 @@ export default function CategoriesPage() {
   }
 
   useEffect(() => {
-    fetchCategories()
-  }, [])
+    if (status === 'authenticated') {
+      fetchCategories()
+    }
+  }, [status])
 
   const handleAddCategory = async (data: CategoryFormData) => {
     try {
@@ -53,7 +54,6 @@ export default function CategoriesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          userId: TEMP_USER_ID,
         }),
       })
 

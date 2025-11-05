@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Header } from '@/components/layout/Header'
 import { TransactionList } from '@/components/transactions/TransactionList'
@@ -11,10 +12,8 @@ import { Loading } from '@/components/ui/Loading'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { TransactionWithRelations, AccountWithRelations, CategoryWithRelations } from '@/types/api'
 
-// Temporary hardcoded user ID - replace with actual auth later
-const TEMP_USER_ID = 'temp-user-id'
-
 export default function TransactionsPage() {
+  const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<TransactionWithRelations[]>([])
@@ -30,9 +29,9 @@ export default function TransactionsPage() {
       setError(null)
 
       const [transactionsRes, accountsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/transactions?userId=${TEMP_USER_ID}&limit=100`),
-        fetch(`/api/accounts?userId=${TEMP_USER_ID}`),
-        fetch(`/api/categories?userId=${TEMP_USER_ID}`),
+        fetch('/api/transactions?limit=100'),
+        fetch('/api/accounts'),
+        fetch('/api/categories'),
       ])
 
       if (!transactionsRes.ok || !accountsRes.ok || !categoriesRes.ok) {
@@ -54,18 +53,17 @@ export default function TransactionsPage() {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (status === 'authenticated') {
+      fetchData()
+    }
+  }, [status])
 
   const handleAddTransaction = async (data: TransactionFormData) => {
     try {
       const response = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          userId: TEMP_USER_ID,
-        }),
+        body: JSON.stringify(data), // API gets userId from session
       })
 
       if (!response.ok) {
@@ -195,7 +193,7 @@ export default function TransactionsPage() {
         <TransactionForm
           accounts={accounts}
           categories={categories}
-          userId={TEMP_USER_ID}
+          userId={session?.user?.id || ''}
           onSubmit={handleAddTransaction}
           onCancel={() => setIsAddModalOpen(false)}
         />
@@ -212,7 +210,7 @@ export default function TransactionsPage() {
         <TransactionForm
           accounts={accounts}
           categories={categories}
-          userId={TEMP_USER_ID}
+          userId={session?.user?.id || ''}
           onSubmit={handleEditTransaction}
           onCancel={() => {
             setIsEditModalOpen(false)

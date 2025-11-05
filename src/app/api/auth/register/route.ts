@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcrypt'
+import { authRateLimiter } from '@/lib/rate-limiter'
+import { handleError, ConflictError, safeJsonParse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { email, password, name } = body
+  // Apply rate limiting
+  const rateLimitResponse = authRateLimiter.check(request)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
 
-    if (!email || !password) {
+  try {
+    const body = await safeJsonParse(request)
+
+    // Validate and sanitize input
+    const validation = await import('@/lib/validation').then(m => m.validateData(m.registerSchema, body))
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: validation.error },
         { status: 400 }
       )
     }
+
+    const { email, password, name } = validation.data!
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -20,10 +31,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 409 }
-      )
+      throw new ConflictError('User with this email already exists')
     }
 
     // Hash the password before storing
@@ -47,11 +55,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     )
-  } catch (error: any) {
-    console.error('Registration error:', error)
-    return NextResponse.json(
-      { error: 'Failed to create user' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return handleError(error, 'POST /api/auth/register')
   }
 }

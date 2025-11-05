@@ -30,12 +30,12 @@ export default function DashboardPage() {
       setIsLoading(true)
       setError(null)
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel (APIs use session for userId, no need to pass it)
       const [summaryRes, transactionsRes, accountsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/dashboard/summary?userId=${userId}`),
-        fetch(`/api/transactions?userId=${userId}&limit=10`),
-        fetch(`/api/accounts?userId=${userId}`),
-        fetch(`/api/categories?userId=${userId}`),
+        fetch('/api/dashboard/summary'),
+        fetch('/api/transactions?limit=10'),
+        fetch('/api/accounts'),
+        fetch('/api/categories'),
       ])
 
       if (!summaryRes.ok || !transactionsRes.ok || !accountsRes.ok || !categoriesRes.ok) {
@@ -71,10 +71,7 @@ export default function DashboardPage() {
       const response = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          userId: session.user.id, // Use real user ID
-        }),
+        body: JSON.stringify(data), // API gets userId from session
       })
 
       if (!response.ok) {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { apiRateLimiter } from '@/lib/rate-limiter'
+import { validateData, createAccountSchema } from '@/lib/validation'
+import { handleError, UnauthorizedError, safeJsonParse } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 
@@ -9,9 +12,15 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
+
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
 
     const accounts = await prisma.financeAccount.findMany({
       where: { userId: authenticatedUserId }, // Enforce user isolation
@@ -24,11 +33,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(accounts)
   } catch (error) {
-    console.error('Error fetching accounts:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch accounts' },
-      { status: 500 }
-    )
+    return handleError(error, 'GET /api/accounts')
   }
 }
 
@@ -37,16 +42,28 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
 
-    const body = await request.json()
-    const { name } = body
-
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
     }
+
+    const body = await safeJsonParse(request)
+
+    // Validate and sanitize input
+    const validation = validateData(createAccountSchema, body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400 }
+      )
+    }
+
+    const { name } = validation.data!
 
     const account = await prisma.financeAccount.create({
       data: {
@@ -56,12 +73,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(account, { status: 201 })
-  } catch (error: any) {
-    console.error('Error creating account:', error)
-
-    return NextResponse.json(
-      { error: 'Failed to create account' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return handleError(error, 'POST /api/accounts')
   }
 }

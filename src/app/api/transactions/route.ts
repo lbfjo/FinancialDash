@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
+import { apiRateLimiter } from '@/lib/rate-limiter'
+import { validateData, transactionFiltersSchema, createTransactionSchema } from '@/lib/validation'
+import { handleError, UnauthorizedError, safeJsonParse } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 
@@ -10,17 +13,35 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
 
-    const searchParams = request.nextUrl.searchParams
-    const accountId = searchParams.get('accountId')
-    const categoryId = searchParams.get('categoryId')
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
-    const limit = searchParams.get('limit')
-    const offset = searchParams.get('offset')
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    // Validate query parameters
+    const filters = {
+      accountId: request.nextUrl.searchParams.get('accountId'),
+      categoryId: request.nextUrl.searchParams.get('categoryId'),
+      startDate: request.nextUrl.searchParams.get('startDate'),
+      endDate: request.nextUrl.searchParams.get('endDate'),
+      limit: request.nextUrl.searchParams.get('limit'),
+      offset: request.nextUrl.searchParams.get('offset'),
+    }
+
+    const validation = validateData(transactionFiltersSchema, filters)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400 }
+      )
+    }
+
+    const { accountId, categoryId, startDate, endDate, limit, offset } = validation.data!
 
     const where: Prisma.TransactionWhereInput = {
       userId: authenticatedUserId, // Enforce user isolation
@@ -42,8 +63,8 @@ export async function GET(request: NextRequest) {
         category: true,
       },
       orderBy: { date: 'desc' },
-      take: limit ? parseInt(limit) : undefined,
-      skip: offset ? parseInt(offset) : undefined,
+      take: limit,
+      skip: offset,
     })
 
     // Get total count for pagination
@@ -53,16 +74,12 @@ export async function GET(request: NextRequest) {
       transactions,
       pagination: {
         total,
-        limit: limit ? parseInt(limit) : total,
-        offset: offset ? parseInt(offset) : 0,
+        limit: limit || total,
+        offset: offset || 0,
       },
     })
   } catch (error) {
-    console.error('Error fetching transactions:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch transactions' },
-      { status: 500 }
-    )
+    return handleError(error, 'GET /api/transactions')
   }
 }
 
@@ -71,28 +88,29 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
 
-    const body = await request.json()
-    const { accountId, categoryId, amount, date, description } = body
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
 
-    if (!accountId || !amount || !date) {
+    const body = await safeJsonParse(request)
+
+    // Validate and sanitize input
+    const validation = validateData(createTransactionSchema, body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'accountId, amount, and date are required' },
+        { error: validation.error },
         { status: 400 }
       )
     }
 
-    // Validate amount is a valid number
+    const { accountId, categoryId, amount, date, description } = validation.data!
     const amountDecimal = new Prisma.Decimal(amount)
-    if (amountDecimal.isNaN()) {
-      return NextResponse.json(
-        { error: 'Amount must be a valid number' },
-        { status: 400 }
-      )
-    }
 
     const transaction = await prisma.transaction.create({
       data: {
@@ -110,19 +128,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(transaction, { status: 201 })
-  } catch (error: any) {
-    console.error('Error creating transaction:', error)
-
-    if (error.code === 'P2003') {
-      return NextResponse.json(
-        { error: 'Account or category not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to create transaction' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return handleError(error, 'POST /api/transactions')
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Header } from '@/components/layout/Header'
 import { AccountList } from '@/components/accounts/AccountList'
@@ -11,10 +12,8 @@ import { Loading } from '@/components/ui/Loading'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 import { AccountWithRelations } from '@/types/api'
 
-// Temporary hardcoded user ID - replace with actual auth later
-const TEMP_USER_ID = 'temp-user-id'
-
 export default function AccountsPage() {
+  const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<AccountWithRelations[]>([])
@@ -27,7 +26,7 @@ export default function AccountsPage() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/accounts?userId=${TEMP_USER_ID}`)
+      const response = await fetch('/api/accounts')
 
       if (!response.ok) {
         throw new Error('Failed to fetch accounts')
@@ -43,8 +42,10 @@ export default function AccountsPage() {
   }
 
   useEffect(() => {
-    fetchAccounts()
-  }, [])
+    if (status === 'authenticated') {
+      fetchAccounts()
+    }
+  }, [status])
 
   const handleAddAccount = async (data: AccountFormData) => {
     try {
@@ -53,7 +54,6 @@ export default function AccountsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          userId: TEMP_USER_ID,
         }),
       })
 

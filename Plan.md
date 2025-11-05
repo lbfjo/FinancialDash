@@ -4,24 +4,49 @@ This document outlines the development plan and user stories for the Finance Das
 
 ## ✅ Completed
 
-### Security & Stability Hardening
+### Phase 0: Security & Stability Hardening ✅
 
+#### Security Fixes
 *   **Fix Critical Access Control Vulnerability (IDOR):** Patched all API endpoints (`transactions`, `accounts`, `categories`, `dashboard`) to ensure users can only access their own data.
 *   **Stabilize Application Runtime:** Refactored the NextAuth.js configuration to be compatible with both Edge and Node.js runtimes, resolving critical startup errors.
 
+#### API Security Measures
+*   **Rate Limiting:** Implemented comprehensive rate limiting on all API endpoints:
+  - Auth endpoints: 5 requests per 15 minutes
+  - API endpoints: 100 requests per minute
+  - Security logging for rate limit violations
+*   **Input Validation & Sanitization:** Added Zod schemas for all inputs with:
+  - Email format validation
+  - Password strength requirements (8+ chars, uppercase, lowercase, number)
+  - String length limits to prevent DoS
+  - Proper decimal/date validation
+*   **Error Handling:** Implemented centralized error handling:
+  - User-friendly error messages
+  - No internal details exposed in production
+  - Structured error responses with timestamps
+  - Proper Prisma error handling
+
+#### Performance & Maintainability
+*   **Database Indexes:** Added performance indexes on:
+  - All userId fields for user isolation
+  - Transaction date with DESC ordering
+  - Compound indexes for common query patterns (userId + accountId, userId + categoryId, userId + type)
+*   **N+1 Query Fixes:** Optimized queries with:
+  - Proper use of Prisma `include` to prevent N+1
+  - Parallel query execution with `Promise.all`
+  - Efficient aggregations with `groupBy`
+*   **Logging Infrastructure:** Implemented structured logging with Pino:
+  - JSON logging in production, pretty-print in development
+  - HTTP request/response logging
+  - Security event tracking
+  - Performance monitoring
+  - Sensitive data redaction
+*   **API Versioning:** Created versioning infrastructure:
+  - Version header support
+  - Deprecation warning system
+  - API documentation (API.md)
+
 ---
-
-## Phase 0: Security Hardening (Priority)
-
-### 1. Implement API Security Measures
-*   **As a site administrator, I want to implement rate limiting on the API and authentication endpoints, so that I can prevent brute-force attacks and ensure service stability.**
-*   **As a developer, I want to validate and sanitize all user input, so that I can prevent common vulnerabilities like SQL Injection and ensure data integrity.**
-*   **As a user, I should not see detailed system errors, so that internal application details are not exposed and my experience is not confusing.**
-
-### 2. Improve Performance & Maintainability
-*   **As a user, I want the dashboard and transaction lists to load quickly, so that I can have a smooth and efficient experience.**
-*   **As a developer, I want to add proper database indexes and fix N+1 query problems, so that the application scales efficiently.**
-*   **As a developer, I want a well-structured, maintainable, and observable codebase (with logging, strict typing, and API versioning), so that I can build new features and fix bugs efficiently and safely.**
 
 ## Phase 1: Foundational User Features & UX
 

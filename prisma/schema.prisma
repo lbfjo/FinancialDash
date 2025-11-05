@@ -39,6 +39,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId]) // Index for OAuth account lookups by user
 }
 
 model VerificationToken {
@@ -56,6 +57,8 @@ model FinanceAccount {
   userId       String
   transactions Transaction[]
   createdAt    DateTime       @default(now())
+
+  @@index([userId]) // Index for filtering accounts by user
 }
 
 model Category {
@@ -66,6 +69,9 @@ model Category {
   userId       String
   transactions Transaction[]
   createdAt    DateTime       @default(now())
+
+  @@index([userId]) // Index for filtering categories by user
+  @@index([userId, type]) // Compound index for filtering by user and type
 }
 
 model Transaction {
@@ -80,6 +86,12 @@ model Transaction {
   date        DateTime
   description String?
   createdAt   DateTime        @default(now())
+
+  @@index([userId]) // Index for filtering transactions by user
+  @@index([userId, date(sort: Desc)]) // Compound index for user queries ordered by date
+  @@index([userId, accountId]) // Compound index for filtering by user and account
+  @@index([userId, categoryId]) // Compound index for filtering by user and category
+  @@index([date]) // Index for date range queries
 }
 
 enum CategoryType {

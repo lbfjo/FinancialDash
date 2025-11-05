@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { CategoryType } from '@prisma/client'
 import { auth } from '@/lib/auth'
+import { apiRateLimiter } from '@/lib/rate-limiter'
+import { validateData, createCategorySchema, categoryFiltersSchema } from '@/lib/validation'
+import { handleError, UnauthorizedError, safeJsonParse } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 
@@ -14,11 +17,29 @@ export async function GET(request: NextRequest) {
     }
     const authenticatedUserId = session.user.id
 
-    const searchParams = request.nextUrl.searchParams
-    const type = searchParams.get('type') as CategoryType | null
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    // Validate query parameters
+    const filters = {
+      type: request.nextUrl.searchParams.get('type'),
+    }
+
+    const validation = validateData(categoryFiltersSchema, filters)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400 }
+      )
+    }
+
+    const { type } = validation.data!
 
     const where: any = { userId: authenticatedUserId } // Enforce user isolation
-    if (type && (type === 'INCOME' || type === 'EXPENSE')) {
+    if (type) {
       where.type = type
     }
 
@@ -34,11 +55,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(categories)
   } catch (error) {
-    console.error('Error fetching categories:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch categories' },
-      { status: 500 }
-    )
+    return handleError(error, 'GET /api/categories')
   }
 }
 
@@ -47,26 +64,28 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
 
-    const body = await request.json()
-    const { name, type } = body
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
 
-    if (!name || !type) {
+    const body = await safeJsonParse(request)
+
+    // Validate and sanitize input
+    const validation = validateData(createCategorySchema, body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Name and type are required' },
+        { error: validation.error },
         { status: 400 }
       )
     }
 
-    if (type !== 'INCOME' && type !== 'EXPENSE') {
-      return NextResponse.json(
-        { error: 'Type must be either INCOME or EXPENSE' },
-        { status: 400 }
-      )
-    }
+    const { name, type } = validation.data!
 
     const category = await prisma.category.create({
       data: {
@@ -77,12 +96,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(category, { status: 201 })
-  } catch (error: any) {
-    console.error('Error creating category:', error)
-
-    return NextResponse.json(
-      { error: 'Failed to create category' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return handleError(error, 'POST /api/categories')
   }
 }

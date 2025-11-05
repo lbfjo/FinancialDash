@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
+import { apiRateLimiter } from '@/lib/rate-limiter'
+import { handleError, UnauthorizedError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 
@@ -10,9 +12,15 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new UnauthorizedError()
     }
     const authenticatedUserId = session.user.id
+
+    // Apply rate limiting
+    const rateLimitResponse = apiRateLimiter.check(request, authenticatedUserId)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
 
     const searchParams = request.nextUrl.searchParams
 
@@ -104,34 +112,34 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Get account count
-    const accountCount = await prisma.financeAccount.count({
-      where: { userId: authenticatedUserId }, // Enforce user isolation
-    })
+    // Optimize counts with a single parallel query batch using Promise.all
+    const [accountCount, categoryCounts, recentTransactions] = await Promise.all([
+      // Get account count
+      prisma.financeAccount.count({
+        where: { userId: authenticatedUserId },
+      }),
+      // Get category counts grouped by type in a single query
+      prisma.category.groupBy({
+        by: ['type'],
+        where: { userId: authenticatedUserId },
+        _count: true,
+      }),
+      // Get recent transactions
+      prisma.transaction.findMany({
+        where: { userId: authenticatedUserId },
+        include: {
+          account: true,
+          category: true,
+        },
+        orderBy: { date: 'desc' },
+        take: 10,
+      }),
+    ])
 
-    // Get category counts
-    const categoryCount = await prisma.category.count({
-      where: { userId: authenticatedUserId }, // Enforce user isolation
-    })
-
-    const incomeCategories = await prisma.category.count({
-      where: { userId: authenticatedUserId, type: 'INCOME' }, // Enforce user isolation
-    })
-
-    const expenseCategories = await prisma.category.count({
-      where: { userId: authenticatedUserId, type: 'EXPENSE' }, // Enforce user isolation
-    })
-
-    // Recent transactions
-    const recentTransactions = await prisma.transaction.findMany({
-      where: { userId: authenticatedUserId }, // Enforce user isolation
-      include: {
-        account: true,
-        category: true,
-      },
-      orderBy: { date: 'desc' },
-      take: 10,
-    })
+    // Extract category counts from groupBy result
+    const incomeCategories = categoryCounts.find(g => g.type === 'INCOME')?._count || 0
+    const expenseCategories = categoryCounts.find(g => g.type === 'EXPENSE')?._count || 0
+    const categoryCount = incomeCategories + expenseCategories
 
     return NextResponse.json({
       summary: {
@@ -171,10 +179,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching dashboard summary:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard summary' },
-      { status: 500 }
-    )
+    return handleError(error, 'GET /api/dashboard/summary')
   }
 }
