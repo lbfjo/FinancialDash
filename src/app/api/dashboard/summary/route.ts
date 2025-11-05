@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get account count
-    const accountCount = await prisma.account.count({
+    const accountCount = await prisma.financeAccount.count({
       where: { userId },
     })
 

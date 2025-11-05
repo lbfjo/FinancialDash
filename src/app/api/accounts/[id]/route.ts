@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const account = await prisma.account.findUnique({
+    const account = await prisma.financeAccount.findUnique({
       where: { id },
       include: {
         user: {
@@ -61,7 +61,7 @@ export async function PUT(
       )
     }
 
-    const account = await prisma.account.update({
+    const account = await prisma.financeAccount.update({
       where: { id },
       data: { name },
       include: {
@@ -100,7 +100,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    await prisma.account.delete({
+    await prisma.financeAccount.delete({
       where: { id },
     })
 

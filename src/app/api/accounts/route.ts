@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
 
     if (userId) {
-      const accounts = await prisma.account.findMany({
+      const accounts = await prisma.financeAccount.findMany({
         where: { userId },
         include: {
           user: true,
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(accounts)
     }
 
-    const accounts = await prisma.account.findMany({
+    const accounts = await prisma.financeAccount.findMany({
       include: {
         user: {
           select: {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const account = await prisma.account.create({
+    const account = await prisma.financeAccount.create({
       data: {
         name,
         userId,

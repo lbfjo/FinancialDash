@@ -1,4 +1,4 @@
-import { User, Account, Category, Transaction, CategoryType } from '@prisma/client'
+import { User, FinanceAccount, Category, Transaction, CategoryType } from '@prisma/client'
 
 // API Request types
 export interface CreateUserRequest {
@@ -50,17 +50,17 @@ export interface UpdateTransactionRequest {
 
 // API Response types with relations
 export interface UserWithRelations extends User {
-  accounts?: Account[]
+  financeAccounts?: FinanceAccount[]
   categories?: Category[]
   transactions?: TransactionWithRelations[]
   _count?: {
-    accounts: number
+    financeAccounts: number
     categories: number
     transactions: number
   }
 }
 
-export interface AccountWithRelations extends Account {
+export interface AccountWithRelations extends FinanceAccount {
   user?: {
     id: string
     email: string
@@ -90,7 +90,7 @@ export interface TransactionWithRelations extends Transaction {
     email: string
     name: string | null
   }
-  account?: Account
+  account?: FinanceAccount
   category?: Category | null
 }
 

@@ -19,7 +19,7 @@ async function main() {
   console.log('✅ Created demo user:', user.email)
 
   // Create default accounts
-  const checkingAccount = await prisma.account.upsert({
+  const checkingAccount = await prisma.financeAccount.upsert({
     where: { id: 'default-checking' },
     update: {},
     create: {
@@ -29,7 +29,7 @@ async function main() {
     },
   })
 
-  const savingsAccount = await prisma.account.upsert({
+  const savingsAccount = await prisma.financeAccount.upsert({
     where: { id: 'default-savings' },
     update: {},
     create: {

@@ -1,7 +1,16 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
 import { Button } from '@/components/ui/Button'
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth()
+
+  // If user is already logged in, redirect to dashboard
+  if (session?.user) {
+    redirect('/dashboard')
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="text-center max-w-2xl px-6">
@@ -12,8 +21,13 @@ export default function Home() {
           Track your income, expenses, and financial health all in one place.
         </p>
         <div className="flex gap-4 justify-center">
-          <Link href="/dashboard">
-            <Button size="lg">Go to Dashboard</Button>
+          <Link href="/login">
+            <Button size="lg">Sign In</Button>
+          </Link>
+          <Link href="/register">
+            <Button size="lg" variant="outline">
+              Sign Up
+            </Button>
           </Link>
         </div>
 
