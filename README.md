@@ -1,36 +1,261 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Finance Dashboard
+
+A modern, full-stack personal finance management application built with Next.js 16, React 19, and PostgreSQL. Track your income, expenses, and financial health all in one place with a beautiful, intuitive interface.
+
+## Features
+
+- **Dashboard Overview** - Real-time financial summary with income/expense tracking
+- **Account Management** - Manage multiple financial accounts (checking, savings, credit cards)
+- **Transaction Tracking** - Record and categorize all your financial transactions
+- **Category System** - Organize income and expenses with customizable categories
+- **Visual Analytics** - Interactive charts showing spending patterns and trends
+- **Authentication** - Secure login with email/password or GitHub OAuth
+- **Responsive Design** - Beautiful UI that works on desktop and mobile devices
+
+## Tech Stack
+
+- **Framework:** [Next.js 16](https://nextjs.org/) with App Router
+- **React:** Version 19.2.0 with Server Components
+- **Database:** PostgreSQL via [Prisma Postgres](https://www.prisma.io/postgres)
+- **ORM:** [Prisma 6](https://www.prisma.io/)
+- **Authentication:** [NextAuth.js v5](https://next-auth.js.org/)
+- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
+- **Charts:** [Recharts](https://recharts.org/)
+- **TypeScript:** Strict mode enabled
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** 18.x or higher
+- **npm** or **yarn** package manager
+- **PostgreSQL** database (or use Prisma Postgres for local development)
+- **GitHub OAuth App** (for GitHub login feature)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/finance-dashboard.git
+cd finance-dashboard
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Environment Setup
+
+Create a `.env` file in the root directory:
+
+```env
+# Database
+DATABASE_URL="your-postgresql-connection-string"
+
+# NextAuth Configuration
+AUTH_SECRET="your-secret-key-min-32-characters-long"
+NEXTAUTH_URL="http://localhost:3000"
+
+# GitHub OAuth (Get from: https://github.com/settings/developers)
+GITHUB_CLIENT_ID="your-github-client-id"
+GITHUB_CLIENT_SECRET="your-github-client-secret"
+```
+
+#### Setting Up GitHub OAuth
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App" or "Register a new application"
+3. Fill in the application details:
+   - **Application name:** Finance Dashboard (Dev)
+   - **Homepage URL:** `http://localhost:3000`
+   - **Authorization callback URL:** `http://localhost:3000/api/auth/callback/github`
+4. Click "Register application"
+5. Copy the **Client ID** and generate a new **Client Secret**
+6. Add these credentials to your `.env` file
+
+#### Generate AUTH_SECRET
+
+```bash
+openssl rand -base64 32
+```
+
+### 4. Database Setup
+
+Generate Prisma Client and apply migrations:
+
+```bash
+# Generate Prisma Client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate deploy
+
+# (Optional) Seed the database with sample data
+npm run db:seed
+```
+
+### 5. Start Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit [http://localhost:3000](http://localhost:3000) to see your application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database Schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application uses the following core models:
 
-## Learn More
+- **User** - User accounts with email and OAuth support
+- **FinanceAccount** - Financial accounts (checking, savings, etc.)
+- **Category** - Income and expense categories
+- **Transaction** - Financial transactions with amounts and dates
+- **Account** - OAuth provider accounts (GitHub, etc.)
 
-To learn more about Next.js, take a look at the following resources:
+## Available Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev          # Start development server
+npm run build        # Create production build
+npm run start        # Start production server
+npm run lint         # Run ESLint
+```
 
-## Deploy on Vercel
+### Database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx prisma generate                          # Generate Prisma Client
+npx prisma migrate dev --name <name>         # Create and apply migration
+npx prisma migrate deploy                    # Apply pending migrations
+npx prisma db push                           # Push schema changes without migration
+npx prisma studio                            # Open Prisma Studio GUI
+npx prisma migrate reset                     # Reset database (destructive)
+npm run db:seed                              # Seed database with sample data
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+finance-dashboard/
+├── src/
+│   ├── app/                    # Next.js App Router pages
+│   │   ├── api/               # API routes
+│   │   ├── dashboard/         # Dashboard page
+│   │   ├── transactions/      # Transactions page
+│   │   ├── accounts/          # Accounts page
+│   │   ├── categories/        # Categories page
+│   │   ├── login/             # Login page
+│   │   └── register/          # Registration page
+│   ├── components/            # React components
+│   │   ├── ui/               # Reusable UI components
+│   │   ├── accounts/         # Account-related components
+│   │   ├── transactions/     # Transaction components
+│   │   └── categories/       # Category components
+│   ├── lib/                   # Utility functions and configs
+│   │   ├── auth.ts           # NextAuth configuration
+│   │   └── prisma.ts         # Prisma client instance
+│   └── types/                 # TypeScript type definitions
+├── prisma/
+│   ├── schema.prisma          # Database schema
+│   ├── migrations/            # Database migrations
+│   └── seed.ts                # Database seeding script
+├── public/                    # Static assets
+└── package.json
+```
+
+## Authentication
+
+The application supports two authentication methods:
+
+1. **Email/Password** - Traditional email and password authentication
+2. **GitHub OAuth** - One-click sign-in with GitHub account
+
+All routes under `/dashboard`, `/transactions`, `/accounts`, and `/categories` are protected and require authentication.
+
+## Demo Account
+
+When running with seed data:
+- **Email:** demo@example.com
+- **Password:** any password (for development only)
+
+## Features in Detail
+
+### Dashboard
+- Total income and expense summary
+- Net income calculation
+- Recent transactions list
+- Income/expense breakdown by category
+- Account transaction counts
+- Interactive charts and visualizations
+
+### Transactions
+- Create, read, update, and delete transactions
+- Filter by account, category, and date range
+- Sort by date, amount, or category
+- Pagination for large transaction lists
+
+### Accounts
+- Manage multiple financial accounts
+- Track transactions per account
+- View account balances and transaction history
+
+### Categories
+- Organize transactions by income/expense categories
+- Default categories provided (Salary, Groceries, Rent, etc.)
+- Create custom categories
+- Track spending per category
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push your code to GitHub
+2. Import your repository in [Vercel](https://vercel.com)
+3. Configure environment variables in Vercel dashboard
+4. Update GitHub OAuth callback URL to your production domain
+5. Deploy
+
+### Other Platforms
+
+The application can be deployed to any platform that supports Next.js:
+- Netlify
+- Railway
+- AWS Amplify
+- Docker container
+
+Ensure you set all required environment variables on your hosting platform.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [Next.js](https://nextjs.org/)
+- Database powered by [Prisma](https://www.prisma.io/)
+- Authentication by [NextAuth.js](https://next-auth.js.org/)
+- UI styled with [Tailwind CSS](https://tailwindcss.com/)
+- Charts by [Recharts](https://recharts.org/)
+
+## Support
+
+For support, please open an issue in the GitHub repository or contact the maintainers.
+
+---
+
+**Note:** This is a personal finance management tool. Always ensure you're following best security practices when handling financial data.
