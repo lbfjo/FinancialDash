@@ -230,13 +230,29 @@ The application can be deployed to any platform that supports Next.js:
 
 Ensure you set all required environment variables on your hosting platform.
 
+## Documentation
+
+Comprehensive documentation is available in the `/docs` directory:
+
+- **[API Reference](docs/api/API_REFERENCE.md)** - Complete API documentation with endpoints, request/response formats, and examples
+- **[Architecture Guide](docs/architecture/ARCHITECTURE.md)** - System architecture, database schema, and design decisions
+- **[User Guide](docs/user-guide/USER_GUIDE.md)** - Step-by-step guide for using the application
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to the project
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Setting up your development environment
+- Coding standards and best practices
+- How to submit pull requests
+- Testing guidelines
+
+Quick start for contributors:
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+3. Commit your changes (`git commit -m 'feat: add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
