@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Track your income, expenses, and financial health all in one place. Manage accounts, categorize transactions, and gain insights into your spending habits.",
 };
 
+import Providers from '@/components/layout/Providers';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -2,18 +2,23 @@
 
 This document outlines the development plan and user stories for the Finance Dashboard application.
 
-## Phase 0: Security & Stability Hardening (Priority)
+## ✅ Completed
 
-### 1. Fix Critical Access Control Vulnerability (IDOR)
-*   **As a user, I want my financial data to be private and inaccessible to other users, so that I can trust the application with my sensitive information.**
-*   **As a developer, I must ensure that every API request is authorized, so that one user cannot access another user's data.**
+### Security & Stability Hardening
 
-### 2. Implement API Security Measures
+*   **Fix Critical Access Control Vulnerability (IDOR):** Patched all API endpoints (`transactions`, `accounts`, `categories`, `dashboard`) to ensure users can only access their own data.
+*   **Stabilize Application Runtime:** Refactored the NextAuth.js configuration to be compatible with both Edge and Node.js runtimes, resolving critical startup errors.
+
+---
+
+## Phase 0: Security Hardening (Priority)
+
+### 1. Implement API Security Measures
 *   **As a site administrator, I want to implement rate limiting on the API and authentication endpoints, so that I can prevent brute-force attacks and ensure service stability.**
 *   **As a developer, I want to validate and sanitize all user input, so that I can prevent common vulnerabilities like SQL Injection and ensure data integrity.**
 *   **As a user, I should not see detailed system errors, so that internal application details are not exposed and my experience is not confusing.**
 
-### 3. Improve Performance & Maintainability
+### 2. Improve Performance & Maintainability
 *   **As a user, I want the dashboard and transaction lists to load quickly, so that I can have a smooth and efficient experience.**
 *   **As a developer, I want to add proper database indexes and fix N+1 query problems, so that the application scales efficiently.**
 *   **As a developer, I want a well-structured, maintainable, and observable codebase (with logging, strict typing, and API versioning), so that I can build new features and fix bugs efficiently and safely.**

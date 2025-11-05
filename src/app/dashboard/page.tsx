@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Header } from '@/components/layout/Header'
 import { SummaryCards } from '@/components/dashboard/SummaryCards'
@@ -14,10 +15,8 @@ import { Button } from '@/components/ui/Button'
 import { Loading } from '@/components/ui/Loading'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
-// Temporary hardcoded user ID - replace with actual auth later
-const TEMP_USER_ID = 'temp-user-id'
-
 export default function DashboardPage() {
+  const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dashboardData, setDashboardData] = useState<any>(null)
@@ -26,17 +25,17 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (userId: string) => {
     try {
       setIsLoading(true)
       setError(null)
 
       // Fetch all data in parallel
       const [summaryRes, transactionsRes, accountsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/dashboard/summary?userId=${TEMP_USER_ID}`),
-        fetch(`/api/transactions?userId=${TEMP_USER_ID}&limit=10`),
-        fetch(`/api/accounts?userId=${TEMP_USER_ID}`),
-        fetch(`/api/categories?userId=${TEMP_USER_ID}`),
+        fetch(`/api/dashboard/summary?userId=${userId}`),
+        fetch(`/api/transactions?userId=${userId}&limit=10`),
+        fetch(`/api/accounts?userId=${userId}`),
+        fetch(`/api/categories?userId=${userId}`),
       ])
 
       if (!summaryRes.ok || !transactionsRes.ok || !accountsRes.ok || !categoriesRes.ok) {
@@ -60,17 +59,21 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    if (status === 'authenticated' && session?.user?.id) {
+      fetchDashboardData(session.user.id)
+    }
+  }, [session, status])
 
   const handleAddTransaction = async (data: any) => {
+    if (!session?.user?.id) return
+
     try {
       const response = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          userId: TEMP_USER_ID,
+          userId: session.user.id, // Use real user ID
         }),
       })
 
@@ -79,13 +82,14 @@ export default function DashboardPage() {
       }
 
       setIsAddModalOpen(false)
-      fetchDashboardData()
+      fetchDashboardData(session.user.id)
     } catch (err: any) {
       alert(err.message || 'Failed to create transaction')
     }
   }
 
   const handleDeleteTransaction = async (id: string) => {
+    if (!session?.user?.id) return
     if (!confirm('Are you sure you want to delete this transaction?')) return
 
     try {
@@ -97,17 +101,27 @@ export default function DashboardPage() {
         throw new Error('Failed to delete transaction')
       }
 
-      fetchDashboardData()
+      fetchDashboardData(session.user.id)
     } catch (err: any) {
       alert(err.message || 'Failed to delete transaction')
     }
+  }
+
+  if (status === 'loading') {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loading />
+        </div>
+      </DashboardLayout>
+    )
   }
 
   if (error) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
-          <ErrorMessage message={error} onRetry={fetchDashboardData} />
+          <ErrorMessage message={error} onRetry={() => session?.user?.id && fetchDashboardData(session.user.id)} />
         </div>
       </DashboardLayout>
     )
@@ -181,7 +195,7 @@ export default function DashboardPage() {
         <TransactionForm
           accounts={accounts}
           categories={categories}
-          userId={TEMP_USER_ID}
+          userId={session?.user?.id || ''}
           onSubmit={handleAddTransaction}
           onCancel={() => setIsAddModalOpen(false)}
         />

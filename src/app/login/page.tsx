@@ -59,6 +59,7 @@ export default function LoginPage() {
             )}
 
             <Input
+              id="email"
               type="email"
               label="Email"
               placeholder="demo@example.com"
@@ -70,6 +71,7 @@ export default function LoginPage() {
             />
 
             <Input
+              id="password"
               type="password"
               label="Password"
               placeholder="Enter your password"
