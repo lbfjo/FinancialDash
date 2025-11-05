@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { CategoryType } from '@prisma/client'
+import { auth } from '@/lib/auth'
 
-// GET /api/categories - Get all categories or filter by userId and type
+export const runtime = 'nodejs'
+
+// GET /api/categories - Get all categories for the authenticated user
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+
     const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
     const type = searchParams.get('type') as CategoryType | null
 
-    const where: any = {}
-    if (userId) where.userId = userId
+    const where: any = { userId: authenticatedUserId } // Enforce user isolation
     if (type && (type === 'INCOME' || type === 'EXPENSE')) {
       where.type = type
     }
@@ -18,13 +25,6 @@ export async function GET(request: NextRequest) {
     const categories = await prisma.category.findMany({
       where,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         _count: {
           select: { transactions: true },
         },
@@ -45,12 +45,18 @@ export async function GET(request: NextRequest) {
 // POST /api/categories - Create a new category
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { name, type, userId } = body
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
 
-    if (!name || !type || !userId) {
+    const body = await request.json()
+    const { name, type } = body
+
+    if (!name || !type) {
       return NextResponse.json(
-        { error: 'Name, type, and userId are required' },
+        { error: 'Name and type are required' },
         { status: 400 }
       )
     }
@@ -66,29 +72,13 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         type,
-        userId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
+        userId: authenticatedUserId, // Enforce user isolation
       },
     })
 
     return NextResponse.json(category, { status: 201 })
   } catch (error: any) {
     console.error('Error creating category:', error)
-
-    if (error.code === 'P2003') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
 
     return NextResponse.json(
       { error: 'Failed to create category' },

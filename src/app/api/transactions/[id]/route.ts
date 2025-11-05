@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { auth } from '@/lib/auth'
+
+export const runtime = 'nodejs'
 
 // GET /api/transactions/:id - Get a specific transaction by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
-    const transaction = await prisma.transaction.findUnique({
-      where: { id },
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    const transaction = await prisma.transaction.findFirst({
+      where: { id, userId: authenticatedUserId }, // Enforce ownership
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         account: true,
         category: true,
       },
@@ -44,10 +46,28 @@ export async function GET(
 // PUT /api/transactions/:id - Update a transaction
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    // First, verify the transaction belongs to the user
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: { id, userId: authenticatedUserId },
+    })
+
+    if (!existingTransaction) {
+      return NextResponse.json(
+        { error: 'Transaction not found' },
+        { status: 404 }
+      )
+    }
+
     const body = await request.json()
     const { accountId, categoryId, amount, date, description } = body
 
@@ -75,16 +95,9 @@ export async function PUT(
     }
 
     const transaction = await prisma.transaction.update({
-      where: { id },
+      where: { id }, // ID is sufficient here since we already verified ownership
       data,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         account: true,
         category: true,
       },
@@ -93,13 +106,6 @@ export async function PUT(
     return NextResponse.json(transaction)
   } catch (error: any) {
     console.error('Error updating transaction:', error)
-
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Transaction not found' },
-        { status: 404 }
-      )
-    }
 
     if (error.code === 'P2003') {
       return NextResponse.json(
@@ -118,28 +124,35 @@ export async function PUT(
 // DELETE /api/transactions/:id - Delete a transaction
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
-    await prisma.transaction.delete({
-      where: { id },
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    // Use deleteMany to ensure user ownership in the where clause
+    const result = await prisma.transaction.deleteMany({
+      where: { id, userId: authenticatedUserId }, // Enforce ownership
     })
 
-    return NextResponse.json({ message: 'Transaction deleted successfully' })
-  } catch (error: any) {
-    console.error('Error deleting transaction:', error)
-
-    if (error.code === 'P2025') {
+    if (result.count === 0) {
       return NextResponse.json(
-        { error: 'Transaction not found' },
+        { error: 'Transaction not found or you do not have permission to delete it' },
         { status: 404 }
       )
     }
 
+    return NextResponse.json({ message: 'Transaction deleted successfully' })
+  } catch (error: any) {
+    console.error('Error deleting transaction:', error)
     return NextResponse.json(
       { error: 'Failed to delete transaction' },
       { status: 500 }
     )
   }
 }
+

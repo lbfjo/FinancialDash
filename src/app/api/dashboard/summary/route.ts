@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { auth } from '@/lib/auth'
 
-// GET /api/dashboard/summary - Get dashboard summary for a user
+export const runtime = 'nodejs'
+
+// GET /api/dashboard/summary - Get dashboard summary for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      )
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const authenticatedUserId = session.user.id
+
+    const searchParams = request.nextUrl.searchParams
 
     // Get date range (default to current month)
     const startDate = searchParams.get('startDate')
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Get all transactions for the user in date range
     const transactions = await prisma.transaction.findMany({
       where: {
-        userId,
+        userId: authenticatedUserId, // Enforce user isolation
         date: {
           gte: startDate,
           lte: endDate,
@@ -45,7 +46,10 @@ export async function GET(request: NextRequest) {
 
     const incomeByCategory: Record<string, { name: string; amount: Prisma.Decimal }> = {}
     const expenseByCategory: Record<string, { name: string; amount: Prisma.Decimal }> = {}
-    const transactionsByAccount: Record<string, { name: string; count: number; total: Prisma.Decimal }> = {}
+    const transactionsByAccount: Record<
+      string,
+      { name: string; count: number; total: Prisma.Decimal }
+    > = {}
 
     transactions.forEach((transaction) => {
       const amount = new Prisma.Decimal(transaction.amount)
@@ -60,7 +64,9 @@ export async function GET(request: NextRequest) {
           }
         }
         transactionsByAccount[transaction.accountId].count++
-        transactionsByAccount[transaction.accountId].total = transactionsByAccount[transaction.accountId].total.add(amount)
+        transactionsByAccount[transaction.accountId].total = transactionsByAccount[
+          transaction.accountId
+        ].total.add(amount)
       }
 
       // Track by category type
@@ -73,7 +79,9 @@ export async function GET(request: NextRequest) {
               amount: new Prisma.Decimal(0),
             }
           }
-          incomeByCategory[transaction.categoryId!].amount = incomeByCategory[transaction.categoryId!].amount.add(amount)
+          incomeByCategory[transaction.categoryId!].amount = incomeByCategory[
+            transaction.categoryId!
+          ].amount.add(amount)
         } else {
           totalExpense = totalExpense.add(amount)
           if (!expenseByCategory[transaction.categoryId!]) {
@@ -82,7 +90,9 @@ export async function GET(request: NextRequest) {
               amount: new Prisma.Decimal(0),
             }
           }
-          expenseByCategory[transaction.categoryId!].amount = expenseByCategory[transaction.categoryId!].amount.add(amount)
+          expenseByCategory[transaction.categoryId!].amount = expenseByCategory[
+            transaction.categoryId!
+          ].amount.add(amount)
         }
       } else {
         // Uncategorized - assume expense if positive, income if negative
@@ -96,25 +106,25 @@ export async function GET(request: NextRequest) {
 
     // Get account count
     const accountCount = await prisma.financeAccount.count({
-      where: { userId },
+      where: { userId: authenticatedUserId }, // Enforce user isolation
     })
 
     // Get category counts
     const categoryCount = await prisma.category.count({
-      where: { userId },
+      where: { userId: authenticatedUserId }, // Enforce user isolation
     })
 
     const incomeCategories = await prisma.category.count({
-      where: { userId, type: 'INCOME' },
+      where: { userId: authenticatedUserId, type: 'INCOME' }, // Enforce user isolation
     })
 
     const expenseCategories = await prisma.category.count({
-      where: { userId, type: 'EXPENSE' },
+      where: { userId: authenticatedUserId, type: 'EXPENSE' }, // Enforce user isolation
     })
 
     // Recent transactions
     const recentTransactions = await prisma.transaction.findMany({
-      where: { userId },
+      where: { userId: authenticatedUserId }, // Enforce user isolation
       include: {
         account: true,
         category: true,
@@ -146,12 +156,14 @@ export async function GET(request: NextRequest) {
         categoryName: data.name,
         amount: data.amount.toNumber(),
       })),
-      transactionsByAccount: Object.entries(transactionsByAccount).map(([id, data]) => ({
-        accountId: id,
-        accountName: data.name,
-        transactionCount: data.count,
-        total: data.total.toNumber(),
-      })),
+      transactionsByAccount: Object.entries(transactionsByAccount).map(
+        ([id, data]) => ({
+          accountId: id,
+          accountName: data.name,
+          transactionCount: data.count,
+          total: data.total.toNumber(),
+        })
+      ),
       recentTransactions,
       dateRange: {
         startDate: startDate.toISOString(),

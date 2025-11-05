@@ -1,11 +1,14 @@
 import NextAuth from 'next-auth'
-import Credentials from 'next-auth/providers/credentials'
-import GitHub from 'next-auth/providers/github'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from './prisma'
+import { authConfig } from './auth.config'
+
+import Credentials from 'next-auth/providers/credentials'
+import GitHub from 'next-auth/providers/github'
 import bcrypt from 'bcrypt'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   adapter: PrismaAdapter(prisma),
   providers: [
     GitHub({
@@ -27,16 +30,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           where: { email: credentials.email as string },
         })
 
-        if (!user) {
+        if (!user || !user.password) {
           return null
         }
 
-        // Check if user has a password (OAuth users won't have one)
-        if (!user.password) {
-          return null
-        }
-
-        // Verify password hash
         const isPasswordValid = await bcrypt.compare(
           credentials.password as string,
           user.password
@@ -54,40 +51,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  pages: {
-    signIn: '/login',
-  },
-  callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user
-      const isOnProtectedRoute =
-        nextUrl.pathname.startsWith('/dashboard') ||
-        nextUrl.pathname.startsWith('/transactions') ||
-        nextUrl.pathname.startsWith('/accounts') ||
-        nextUrl.pathname.startsWith('/categories')
-
-      if (isOnProtectedRoute && !isLoggedIn) {
-        return false // Redirect to login page
-      }
-
-      return true
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-      }
-      return token
-    },
-    async session({ session, token, user }) {
-      if (session.user) {
-        // When using adapter (database sessions), user is passed directly
-        // When using JWT, we get the id from token
-        session.user.id = (user?.id as string) || (token.id as string)
-      }
-      return session
-    },
-  },
-  session: {
-    strategy: 'jwt',
-  },
 })

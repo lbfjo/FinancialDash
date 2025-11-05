@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { auth } from '@/lib/auth'
+
+export const runtime = 'nodejs'
 
 // GET /api/transactions - Get all transactions with filters
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+
     const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
     const accountId = searchParams.get('accountId')
     const categoryId = searchParams.get('categoryId')
     const startDate = searchParams.get('startDate')
@@ -14,9 +22,10 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit')
     const offset = searchParams.get('offset')
 
-    const where: Prisma.TransactionWhereInput = {}
+    const where: Prisma.TransactionWhereInput = {
+      userId: authenticatedUserId, // Enforce user isolation
+    }
 
-    if (userId) where.userId = userId
     if (accountId) where.accountId = accountId
     if (categoryId) where.categoryId = categoryId
 
@@ -29,13 +38,6 @@ export async function GET(request: NextRequest) {
     const transactions = await prisma.transaction.findMany({
       where,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         account: true,
         category: true,
       },
@@ -67,12 +69,18 @@ export async function GET(request: NextRequest) {
 // POST /api/transactions - Create a new transaction
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { userId, accountId, categoryId, amount, date, description } = body
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
 
-    if (!userId || !accountId || !amount || !date) {
+    const body = await request.json()
+    const { accountId, categoryId, amount, date, description } = body
+
+    if (!accountId || !amount || !date) {
       return NextResponse.json(
-        { error: 'userId, accountId, amount, and date are required' },
+        { error: 'accountId, amount, and date are required' },
         { status: 400 }
       )
     }
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     const transaction = await prisma.transaction.create({
       data: {
-        userId,
+        userId: authenticatedUserId, // Enforce user isolation
         accountId,
         categoryId: categoryId || null,
         amount: amountDecimal,
@@ -96,13 +104,6 @@ export async function POST(request: NextRequest) {
         description: description || null,
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         account: true,
         category: true,
       },
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     if (error.code === 'P2003') {
       return NextResponse.json(
-        { error: 'User, account, or category not found' },
+        { error: 'Account or category not found' },
         { status: 404 }
       )
     }

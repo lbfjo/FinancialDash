@@ -1,39 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 
-// GET /api/accounts - Get all accounts or filter by userId
+export const runtime = 'nodejs'
+
+// GET /api/accounts - Get all accounts for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
-
-    if (userId) {
-      const accounts = await prisma.financeAccount.findMany({
-        where: { userId },
-        include: {
-          user: true,
-          transactions: {
-            orderBy: { date: 'desc' },
-            take: 5,
-          },
-          _count: {
-            select: { transactions: true },
-          },
-        },
-      })
-
-      return NextResponse.json(accounts)
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const authenticatedUserId = session.user.id
 
     const accounts = await prisma.financeAccount.findMany({
+      where: { userId: authenticatedUserId }, // Enforce user isolation
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         _count: {
           select: { transactions: true },
         },
@@ -53,42 +35,29 @@ export async function GET(request: NextRequest) {
 // POST /api/accounts - Create a new account
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { name, userId } = body
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
 
-    if (!name || !userId) {
-      return NextResponse.json(
-        { error: 'Name and userId are required' },
-        { status: 400 }
-      )
+    const body = await request.json()
+    const { name } = body
+
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
     const account = await prisma.financeAccount.create({
       data: {
         name,
-        userId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
+        userId: authenticatedUserId, // Enforce user isolation
       },
     })
 
     return NextResponse.json(account, { status: 201 })
   } catch (error: any) {
     console.error('Error creating account:', error)
-
-    if (error.code === 'P2003') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
 
     return NextResponse.json(
       { error: 'Failed to create account' },

@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+
+export const runtime = 'nodejs'
 
 // GET /api/categories/:id - Get a specific category by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
-    const category = await prisma.category.findUnique({
-      where: { id },
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    const category = await prisma.category.findFirst({
+      where: { id, userId: authenticatedUserId }, // Enforce ownership
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
         transactions: {
           include: {
             account: true,
@@ -51,10 +53,28 @@ export async function GET(
 // PUT /api/categories/:id - Update a category
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    // First, verify the category belongs to the user
+    const existingCategory = await prisma.category.findFirst({
+      where: { id, userId: authenticatedUserId },
+    })
+
+    if (!existingCategory) {
+      return NextResponse.json(
+        { error: 'Category not found' },
+        { status: 404 }
+      )
+    }
+
     const body = await request.json()
     const { name, type } = body
 
@@ -78,17 +98,8 @@ export async function PUT(
     }
 
     const category = await prisma.category.update({
-      where: { id },
+      where: { id }, // ID is sufficient here since we already verified ownership
       data,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        },
-      },
     })
 
     return NextResponse.json(category)
@@ -112,24 +123,34 @@ export async function PUT(
 // DELETE /api/categories/:id - Delete a category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
-    await prisma.category.delete({
-      where: { id },
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const authenticatedUserId = session.user.id
+    const { id } = params
+
+    // Use deleteMany to ensure user ownership in the where clause
+    const result = await prisma.category.deleteMany({
+      where: { id, userId: authenticatedUserId }, // Enforce ownership
     })
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Category not found or you do not have permission to delete it',
+        },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({ message: 'Category deleted successfully' })
   } catch (error: any) {
     console.error('Error deleting category:', error)
-
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Category not found' },
-        { status: 404 }
-      )
-    }
 
     if (error.code === 'P2003') {
       return NextResponse.json(
